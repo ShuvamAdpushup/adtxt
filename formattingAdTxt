@@ -1,0 +1,379 @@
+function main() {
+
+   var step1Sheet = getSheet("Step 1");
+   var step3Sheet = getSheet("Step 3");
+   var formatSheet = getSheet("Format");
+   var errorSheet = getSheet("Error Sheet");
+  
+   var otherEntriesSheet = getSheet('Exclude');
+
+   var exclude =[];
+  var noHashTagsExclude = []
+  var partialMatch = [];
+ 
+  var otherEntriesSheetData = otherEntriesSheet.getRange(1,1,otherEntriesSheet.getLastRow(),2).getValues();
+  
+   for(var i=0; i< otherEntriesSheetData.length; i++  ){
+       var partialMatch = false;
+       if(otherEntriesSheetData[i][1] == true){
+         partialMatch = true;
+       }
+       if(partialMatch){
+         noHashTagsExclude.push(otherEntriesSheetData[i][0].toLowerCase());
+       }
+
+     if(otherEntriesSheetData[i][0].indexOf('#') == -1){
+       noHashTagsExclude.push(otherEntriesSheetData[i][0].toLowerCase());
+       console.log(otherEntriesSheetData[i][0]);
+       continue;
+     }
+     exclude.push(otherEntriesSheetData[i][0].toLowerCase())
+       
+   }
+  
+   var adpushupAdsDotTxt = getSheet("Adpushup ads.txt");
+
+   step3Sheet.clear({
+      formatOnly: true,
+      contentsOnly: true
+   });
+
+   formatSheet.clear({
+      formatOnly: true,
+      contentsOnly: true
+   });
+
+   errorSheet.clear({
+      formatOnly: true,
+      contentsOnly: true
+   });
+
+   formatSheet.appendRow(['domain', 'email', 'adpushup ads.txt', 'Mandatory ads.txt', 'other ads.txt'])
+
+   var step1SheetValues = step1Sheet.getRange(2, 1, step1Sheet.getLastRow(), 2).getValues();
+
+   var adpushupEntries = getAdpushupAdsDotTxtEntries();
+
+   var adpEntries = [];
+   var adpHalfEntries = [] 
+
+   for (var i = 0; i < adpushupEntries.length; i++) {
+
+      var entries = adpushupEntries[i].splice(1, adpushupEntries.length)
+      entries = entries.join();
+      entries = entries.replace(/ /g, "").toLowerCase().trim().toString();
+      
+      var singleEntries = entries.split(",");
+      var halfEntry = singleEntries[0]  
+      if(singleEntries.length>2){
+        halfEntry += ","+singleEntries[1]; 
+      }
+      adpHalfEntries.push(halfEntry)
+     
+      adpEntries.push(entries);
+      
+   }
+  
+
+   var sheetData = [];
+  
+  var errorSheetOutput = []
+
+   for (var i = 0; i < step1SheetValues.length; i++) {
+
+     var email = step1SheetValues[i][1];
+     var mandatoryAdpHalfEntry = "adpushup.com" + "," +  MD5(email);
+     
+     adpHalfEntries.push(mandatoryAdpHalfEntry.trim());
+
+      var domain = step1SheetValues[i][0]
+      var adsDotTxtData = getAdsDotTxt(domain)
+
+      if (typeof adsDotTxtData != "string") {
+        errorSheetOutput.push([step1SheetValues[i][0]]);
+        continue;
+      }
+     
+     if(adsDotTxtData.indexOf("</html>")>-1){
+        errorSheetOutput.push([step1SheetValues[i][0]]);
+        continue;
+     }
+
+      var allEntries = adsDotTxtData.split('\n');
+      var allPublisherEntries = []
+      var allPublisherHalfEntries = []
+
+      for (var j = 0; j < allEntries.length; j++) {
+
+         var publisherEntry = allEntries[j];
+         if (!publisherEntry) {
+            continue;
+         }
+
+         publisherEntry = publisherEntry.replace(/ /g, "").toLowerCase().trim().toString();
+         allPublisherEntries.push(publisherEntry);
+         var singleEntries = publisherEntry.split(",")
+         
+         var halfEntry = singleEntries[0]
+         if(singleEntries.length>1){
+            halfEntry = singleEntries[0]+","+singleEntries[1]; 
+         }
+            
+         allPublisherHalfEntries.push(halfEntry)
+
+      }
+
+      for (var j = 0; j < adpHalfEntries.length; j++) {
+
+         var entry = adpHalfEntries[j];
+
+
+         if (!entry) {
+            continue;
+         }
+
+         var flag = 0;
+         var index = allPublisherHalfEntries.indexOf(entry);
+
+         if (index > -1) {
+            flag = 1;
+         }
+
+         var row = []
+         row.push(step1SheetValues[i][0]);
+         row.push(adpushupEntries[j]);
+         row.push(adpEntries[j])
+
+         if (flag == 1) {
+            row.push("Yes")
+         } else {
+            row.push("No")
+         }
+
+         sheetData.push(row);
+
+      }
+
+      var cellData = ""
+
+      for (var j = 0; j < allPublisherHalfEntries.length; j++) {
+
+         var entry = allPublisherHalfEntries[j];
+
+         if (!entry) {
+            continue;
+         }
+
+         var flag = 0;
+         var index = adpHalfEntries.indexOf(entry);
+
+         if (index > -1) {
+            continue;
+         }
+
+         var row = []
+         row.push(step1SheetValues[i][0]);
+         row.push('');
+         row.push(allPublisherEntries[j])
+         row.push("Others")
+
+         if(exclude.includes(allPublisherEntries[j])){
+           continue;
+         }
+         
+        //  var skip = 0;
+        //  for(var index = 0; index< partialMatch.length; index++){
+        //   if(allPublisherEntries[j].includes(partialMatch[index])){
+        //     skip = 1;
+        //     break;
+        //   }
+        //  }
+         
+         var skip = 0;
+         for(var noIndex=0; noIndex< noHashTagsExclude.length; noIndex++){
+           if( allPublisherEntries[j].indexOf(noHashTagsExclude[noIndex]) > -1){
+             skip=1;
+             break;
+           }
+         }
+        
+        if(skip){
+          continue;
+        }
+         
+         cellData += allPublisherEntries[j] + "\n"
+         sheetData.push(row);
+
+      }
+
+      var adpushupAdsDotTxtData = adpushupAdsDotTxt.getRange("A1").getValue();
+      
+      var mandatoryAdsDotTxt = "adpushup.com, "+MD5(step1SheetValues[i][1])+", DIRECT, b0b8ff8485794fdd"
+     
+      cellData = cellData.replace(/,/g,', ')
+      var formatSheetValues = [step1SheetValues[i][0], step1SheetValues[i][1], adpushupAdsDotTxtData, mandatoryAdsDotTxt, cellData]
+
+      formatSheet.appendRow(formatSheetValues)
+
+      if (sheetData.length) {
+
+         var lastRow = step3Sheet.getLastRow();
+         if (lastRow == 0) {
+            lastRow += 1;
+            step3Sheet.appendRow(['domain', 'Partner', 'entry', 'Status'])
+         }
+
+         step3Sheet.getRange(lastRow + 1, 1, sheetData.length, 4).setValues(sheetData);
+         sheetData = []
+      }
+
+   }
+  
+  setAlignmentToTop("Format");
+  
+  if(errorSheetOutput.length){
+  
+    errorSheet.appendRow(['Domains'])
+    errorSheet.getRange(2,1,errorSheetOutput.length,1).setValues(errorSheetOutput);
+    
+  }
+
+}
+
+function getSheet(sheetName) {
+
+   return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+
+}
+
+function getDomain(domain) {
+
+   var domain = domain.replace("https://", "").replace("http://", "");
+   if (domain.indexOf("www.") == 0) {
+      domain = domain.replace("www.", "")
+   }
+    
+   if(domain[domain.length - 1] == "/"){
+     domain = domain.substr(0, domain.length);
+   }
+   
+   domain = domain.trim();
+    
+   return domain;
+}
+
+
+function getAdsDotTxt(domain) {
+
+   try {
+
+      domain = getDomain(domain).trim();
+      var adsDotTxtData = UrlFetchApp.fetch('http://' + domain + '/ads.txt').getContentText();
+      return adsDotTxtData;
+
+   } catch (error) {
+      return []
+   }
+
+}
+
+function getAdpushupAdsDotTxtEntries() {
+
+   var sheet = getSheet("Step 2");
+
+   var sheetValues = sheet.getRange(2, 1, sheet.getLastRow() - 1, 2).getValues();
+
+   return sheetValues;
+
+}
+
+function onOpen() {
+   SpreadsheetApp.getUi().createMenu('Ads.txt Check').addItem('Update Ads.txt Report', 'main')
+      .addItem('Update Ads.txt Report and Send Mails', 'main')
+      .addToUi();
+}
+
+function MD5(input) {
+    var txtHash = '';
+    var rawHash = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, input, Utilities.Charset.UTF_8);
+
+    for (i = 0; i < rawHash.length; i++) {
+
+        var hashVal = rawHash[i];
+
+        if (hashVal < 0) {
+            hashVal += 256;
+        };
+        if (hashVal.toString(16).length == 1) {
+            txtHash += '0';
+        };
+        txtHash += hashVal.toString(16);
+    };
+
+    return txtHash.toLowerCase();
+}
+
+function setAlignmentToTop(sheetName){
+
+  var sheet = getSheet(sheetName);
+  sheet.getRange(1,1,sheet.getLastRow(),sheet.getLastColumn()).setVerticalAlignment("Top")
+   
+}
+
+
+
+// -----------------------------------------------------------------------------------
+
+function myFunction() {
+var activeSheet = SpreadsheetApp.getActiveSpreadsheet();
+
+  var sheet= SpreadsheetApp.getActiveSheet();
+  var source= activeSheet.getSheetByName('Sheet70');
+
+  var sourceColumnRange= source.getRange('A:C');
+  var sourceColumnValues= sourceColumnRange.getValues();
+
+  var target= activeSheet.getSheetByName('Sheet72');
+
+  for(var i=0;i<sourceColumnValues.length;i++) {
+    var column1= sourceColumnValues[0,i][0];
+    var column2= sourceColumnValues[0,i][1];
+    var column3= sourceColumnValues[0,i][2];
+    var column4= sourceColumnValues[0,i][3];
+    var column5= sourceColumnValues[0,i][4];
+    
+    target.getRange(i+1,1).setValue(column1);
+    target.getRange(i+1,2).setValue(column2);
+    target.getRange(i+1,3).setValue(column3);
+    target.getRange(i+1,4).setValue(column4);
+    target.getRange(i+1,5).setValue(column5);
+  }
+
+  target.getRange(1,4).setValue("Concatened string");
+
+  var range= source.getRange('D2:J2');
+  var values= range.getValues();
+  var flatValues= values.flat();
+
+  var concatenatedString= flatValues.join("");
+
+  target.getRange(2,4).setValue(concatenatedString);
+  target.getRange(1,5).setValue("Document Link");
+}
+
+// Function to create the google doc
+function createDoc() {
+  doc= DocumentApp.create('Data from Sheet');
+  var body= doc.getBody();
+  var text= body.editAsText();
+  var activeSheet = SpreadsheetApp.getActiveSpreadsheet();
+  var source= activeSheet.getSheetByName('Sheet72');
+  var range= source.getRange("D2:J2");
+  var values= range.getValues();
+  var flatValues= values.flat();
+  var concatenatedString= flatValues.join("");
+  text.insertText(0,concatenatedString);
+  var link= doc.getUrl();
+  // Logger.log(link);
+  SpreadsheetApp.getActive().getSheetByName("Sheet72").getRange(2,5).setValue(link);
+}
