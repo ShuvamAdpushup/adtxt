@@ -9,7 +9,7 @@ function main() {
 
    var exclude =[];
   var noHashTagsExclude = []
-  var partialMatch = [];
+  var partialMatch=[];
  
   var otherEntriesSheetData = otherEntriesSheet.getRange(1,1,otherEntriesSheet.getLastRow(),2).getValues();
   
